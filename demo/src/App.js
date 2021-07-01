@@ -1,19 +1,68 @@
 import './App.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import React, { Component } from 'react';
+import Web3 from 'web3';
+import ImageABI from './abis/Image.json'
 // ipfs client
 const ipfsClient = require('ipfs-http-client')
 const ipfs = ipfsClient({ host: 'ipfs.infura.io', port: '5001', protocol: 'https' }) // leaving out the arguments will default to these values
 class App extends Component{
 
+  async componentWillMount(){
+    await this.loadWeb3()
+    await this.loadBlockchainData()
+  }
+
+
+  //Get the account
+  //Get the network
+  //Get the smart contract --> abi ImageABI.abi and address networkData.address
+  //Get the image hash
+
+  async loadBlockchainData(){
+    const web3 = window.web3
+    const accounts = await web3.eth.getAccounts()
+    this.setState({account: accounts[0]})
+    console.log(accounts)
+    const networkId = await web3.eth.net.getId()
+    console.log(networkId)
+    const networkData = ImageABI.networks[networkId]
+    if(networkData){
+      //fetch contract
+      const abi = ImageABI.abi
+      const address = networkData.address
+      const contract = new web3.eth.Contract(abi, address)
+      this.setState({ contract })
+      console.log(contract)
+
+      const imageHash = await contract.methods.getImageHash().call()
+      this.setState({ imageHash })
+    } else {
+      window.alert('Smart contract not deployed to detected network')
+    }
+
+  }
+
   constructor(props){
     super(props);
     this.state = {
+      account: '',
       buffer: null,
-      imageHash: 'QmUfedgqKVRbcuuwfQ2uEiDEfHhS882DnYXDZ7gHp5Yxsq'
+      contract: null, 
+      imageHash: ''
     };
   }
 
+  async loadWeb3(){
+    if (window.ethereum){
+      window.web3 = new Web3(window.ethereum)
+      await window.ethereum.enable()
+    } if(window.web3){
+      window.web3 = new Web3(window.web3.currentProvider)
+    }else {
+      window.alert('Please use meta mask')
+    }
+  }
 
   captureFile = (event) => {
   event.preventDefault()
@@ -44,6 +93,10 @@ class App extends Component{
         return
       }
       // Step 2 store a file on blockchain...
+      this.state.contract.methods.setImageHash(imageHash).send({from: this.state.account})
+        .then((r) => {
+          this.setState({imageHash})
+        })
     })
   }
 
@@ -57,8 +110,9 @@ class App extends Component{
               href='/'
               target="_blank"
               rel='noopener noreferrer'>
-                NFT
+                IPFS on Blockchain
           </a>
+          <div className="navbar-nav px-3"><small className="text-white">{this.state.account}</small></div>
         </nav>
         <div className="container-fluid mt-5">
           <div className="row">
